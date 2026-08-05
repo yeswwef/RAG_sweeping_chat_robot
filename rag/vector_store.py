@@ -33,6 +33,25 @@ class VectorStoreService:
             search_kwargs={'k': chroma_config["k"]}
         )
 
+    def similarity_search(self, query: str, k: int = 4) -> list[Document]:
+        """稠密向量检索，返回 k 条最相似文档（供混合检索的稠密路使用）。"""
+        return self.vector_store.similarity_search(query, k=k)
+
+    def get_all_documents(self) -> list[Document]:
+        """拉取向量库中全部分块（供 BM25 构建稀疏索引）。"""
+        data = self.vector_store.get()
+        ids = data.get("ids") or []
+        documents = data.get("documents") or []
+        metadatas = data.get("metadatas") or [None] * len(ids)
+        docs = []
+        for doc_id, content, meta in zip(ids, documents, metadatas):
+            if not content:
+                continue
+            meta = dict(meta) if meta else {}
+            meta.setdefault("chunk_id", doc_id)
+            docs.append(Document(page_content=content, metadata=meta))
+        return docs
+
     def check_md5_hex(self, md5_check: str):
         md5_path = get_abs_path(chroma_config["md5_hex_store"])
         if not os.path.exists(md5_path):
