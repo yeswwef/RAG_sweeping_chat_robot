@@ -1,5 +1,6 @@
 import os
 
+import httpx
 from langchain_core.tools import tool
 
 from utils.config_handler import agent_config
@@ -14,12 +15,80 @@ def rag_summarize(query: str) -> str:
     return RagSummarizeService().rag_summarize(query)
 
 
-@tool(description="获取指定城市的天气，以消息字符串的形式返回")
+
+####################################################################################
+# WMO 天气代码 -> 中文（Open-Meteo 用）
+WMO_WEATHER_CODE = {
+    0: "晴", 1: "大部晴朗", 2: "多云", 3: "阴",
+    45: "雾", 48: "雾凇",
+    51: "毛毛雨", 53: "小毛毛雨", 55: "强毛毛雨",
+    56: "冻毛毛雨", 57: "强冻毛毛雨",
+    61: "小雨", 63: "中雨", 65: "大雨",
+    66: "冻雨", 67: "强冻雨",
+    71: "小雪", 73: "中雪", 75: "大雪", 77: "雪粒",
+    80: "小阵雨", 81: "中阵雨", 82: "强阵雨",
+    85: "小阵雪", 86: "强阵雪",
+    95: "雷暴", 96: "雷暴伴冰雹", 99: "强雷暴伴冰雹",
+}
+
+@tool(description="联网获取指定城市的实时天气与未来三天预报，以消息字符串的形式返回")
 def get_weather(city: str) -> str:
-    return (
-        f"城市{city}天气为晴天，气温26摄氏度，空气湿度50%，"
-        f"南风1级，AQI21，最近6小时降雨概率极低"
-    )
+    # 兼容"合肥市"这类带"市"的写法：先去掉后缀再查
+    if city.endswith("市") and len(city) > 1:
+        city = city[:-1]
+    try:
+        geo = httpx.get(
+            "https://geocoding-api.open-meteo.com/v1/search",
+            params={"name": city, "count": 1, "language": "zh"}, timeout=10,
+        )
+        #geo.raise_for_status()：如果 HTTP 状态码不是 200（比如 404 或 500），主动抛出异常，进入 except 分支
+        geo.raise_for_status()
+        results = geo.json().get("results") or []
+        if not results:
+            return f"未找到城市{city}"
+        #纬度(latitude) 和 经度(longitude)
+        lat, lon = results[0]["latitude"], results[0]["longitude"]
+        """
+        current：当前实时数据（气温、湿度、风速、天气代码）。
+        daily：未来三天的数据（最高温、最低温、天气代码）。
+        forecast_days=3：只取今天及后两天。
+        timezone：强制使用中国时区，否则默认 UTC 时间可能会导致日期显示偏差
+        """
+        fc = httpx.get(
+            "https://api.open-meteo.com/v1/forecast",
+            params={
+                "latitude": lat, "longitude": lon,
+                "current": "temperature_2m,relative_humidity_2m,wind_speed_10m,weather_code",
+                "daily": "weather_code,temperature_2m_max,temperature_2m_min",
+                "forecast_days": 3, "timezone": "Asia/Shanghai",
+            },
+            timeout=10,
+        )
+        fc.raise_for_status()
+        data = fc.json()
+        cur = data["current"]#当前天气
+        desc = WMO_WEATHER_CODE.get(cur["weather_code"], cur["weather_code"])#天气状况晴阴
+        daily = data["daily"]
+        
+        parts = [
+            #daily['time'] 是 Open-Meteo 天气 API 自动附带返回的默认字段
+            f"{daily['time'][i]} {daily['temperature_2m_min'][i]}~{daily['temperature_2m_max'][i]}℃"
+            for i in range(len(daily["time"]))
+        ]
+
+        return (
+            f"城市{city}当前天气：{desc}，气温{cur['temperature_2m']}℃，"
+            f"空气湿度{cur['relative_humidity_2m']}%，风速{cur['wind_speed_10m']}km/h。"
+            f"未来三天预报：{'；'.join(parts)}"
+        )
+    except Exception as e:
+        logger.error(f"[get_weather]查询城市{city}失败: {e}")
+        return f"查询城市{city}天气失败，请稍后再试"
+
+
+
+####################################################################################
+
 
 
 @tool(description="获取用户所在城市的名称，以纯字符串形式返回")
