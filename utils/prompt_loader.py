@@ -39,6 +39,19 @@ def load_report_prompts():
         logger.error(f"[load_report_prompts]解析report提示词出错，{str(e)}")
         raise e
 
+
+def load_rag_rewrite_prompts():
+    try:
+        rag_rewrite_prompt_path = get_abs_path(prompts_config["rag_rewrite_prompt_path"])
+    except KeyError as e:
+        logger.error(f"[load_rag_rewrite_prompts] 缺少 rag_rewrite_prompt_path 配置")
+        raise e
+    try:
+        return open(rag_rewrite_prompt_path, "r", encoding="utf-8").read()
+    except Exception as e:
+        logger.error(f"[load_rag_rewrite_prompts] 解析提示词出错，{str(e)}")
+        raise e
+
 rag_prompt_path=get_abs_path(prompts_config["rag_summarize_prompt_path"])
 report_prompt_path=get_abs_path(prompts_config["report_prompt_path"])
 system_prompt_path=get_abs_path(prompts_config["main_prompt_path"])

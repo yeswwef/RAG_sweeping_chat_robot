@@ -7,3 +7,7 @@ hybrid_retrieval:
   dense_top_n: 20 # 稠密路候选数
   sparse_top_n: 20 # 稀疏路候选数
   rrf_k: 60 # RRF 常数（论文推荐 60）
+
+query_rewrite:
+  enabled: true
+  max_queries: 3 # 原问题 + 改写 + 1 个子查询
