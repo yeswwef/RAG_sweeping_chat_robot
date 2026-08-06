@@ -12,7 +12,7 @@ from model.factory import embedding_model
 class RagSummarizeService:
     def __init__(self):
         self.vector_store = VectorStoreService(embedding_model)
-        self.hybrid_retriever = HybridRetriever(self.vector_store)
+        self.hybrid_retriever =  HybridRetriever(self.vector_store)
         self.prompt_text = load_rag_prompts()
         self.prompt_template = PromptTemplate.from_template(self.prompt_text)
         self.model = chat_model
