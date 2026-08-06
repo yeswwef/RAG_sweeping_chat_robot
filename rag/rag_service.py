@@ -3,6 +3,7 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import PromptTemplate
 
 from rag.vector_store import VectorStoreService
+from rag.hybrid_retriever import HybridRetriever
 from utils.prompt_loader import load_rag_prompts
 from model.factory import chat_model
 from model.factory import embedding_model
@@ -11,7 +12,7 @@ from model.factory import embedding_model
 class RagSummarizeService:
     def __init__(self):
         self.vector_store = VectorStoreService(embedding_model)
-        self.retriver = self.vector_store.get_retriever()
+        self.hybrid_retriever = HybridRetriever(self.vector_store)
         self.prompt_text = load_rag_prompts()
         self.prompt_template = PromptTemplate.from_template(self.prompt_text)
         self.model = chat_model
@@ -22,7 +23,9 @@ class RagSummarizeService:
         return chain
 
     def retriever_docs(self, query: str) -> list[Document]:
-        return self.retriver.invoke(query)
+        """混合检索（稠密向量 + BM25 稀疏 + RRF 融合），返回按融合分降序的文档列表。"""
+        results = self.hybrid_retriever.retrieve([query])
+        return [doc for doc, _ in results]
 
     def rag_summarize(self, query: str) -> str:
         context_docs = self.retriever_docs(query)
