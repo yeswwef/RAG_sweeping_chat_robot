@@ -1,5 +1,7 @@
 from langchain.agents import create_agent
-from langgraph.checkpoint.memory import MemorySaver
+import sqlite3
+from langgraph.checkpoint.sqlite import SqliteSaver
+from utils.db import DB_PATH
 
 from agent.tools import middleware
 from model.factory import chat_model
@@ -8,10 +10,13 @@ from agent.tools.agent_tools import (rag_summarize, get_weather, get_user_locati
                                     get_current_month, fetch_external_data, fill_context_for_report)
 from agent.tools.middleware import monitor_tool, log_before_model, report_prompt_switch
 
-
+#智能体模型
 class ReactAgent:
     def __init__(self):
-        self.checkpointer=MemorySaver()
+        # SQLite 持久化记忆：与前端共用 conversations.db，thread_id=会话uuid
+        # 服务重启后仍能按 thread_id 找回历史对话状态
+        self._conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+        self.checkpointer = SqliteSaver(self._conn)
         self.agent=create_agent(
             model=chat_model,
             system_prompt=load_system_prompts(),

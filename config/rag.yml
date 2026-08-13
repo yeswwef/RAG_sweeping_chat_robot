@@ -1,12 +1,12 @@
 chat_model_name: qwen3-max
 embedding_model_name: text-embedding-v4
 
-# ===== 进阶 RAG 管线配置 =====
+
 hybrid_retrieval:
   enabled: true
   dense_top_n: 20 # 稠密路候选数
   sparse_top_n: 20 # 稀疏路候选数
-  rrf_k: 60 # RRF 常数（论文推荐 60）
+  rrf_k: 60 # RRF 常数
 
 query_rewrite:
   enabled: true

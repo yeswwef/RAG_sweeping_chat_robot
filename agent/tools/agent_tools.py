@@ -8,7 +8,8 @@ from utils.logger_handler import logger
 from utils.path_tool import get_abs_path
 from rag.rag_service import RagSummarizeService
 import random
-
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 @tool(description="在向量检索中检索参考资料")
 def rag_summarize(query: str) -> str:
@@ -107,15 +108,12 @@ def get_user_id() -> str:
     return random.choice(user_ids)
 
 
-month_arr = [
-    "2025-01", "2025-02", "2025-03", "2025-04", "2025-05", "2025-06",
-    "2025-07", "2025-08", "2025-09", "2025-10", "2025-11", "2025-12",
-]
-
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 @tool(description="获取当前月份，以纯字符串形式返回")
 def get_current_month() -> str:
-    return random.choice(month_arr)
+    return datetime.now(ZoneInfo("Asia/Shanghai")).strftime("%Y-%m")
 
 
 external_data = {}

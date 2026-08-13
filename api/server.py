@@ -72,8 +72,9 @@ async def chat(req: ChatRequest):
 
     try:
         # 调用 Agent，收集所有输出
+        # session_id 作为 thread_id 传入：同一会话的多轮请求自动累积上下文（多轮对话记忆）
         result = []
-        for chunk in agent.execute_stream(req.query):
+        for chunk in agent.execute_stream(req.query, session_id=session_id):
             result.append(chunk)
         answer = "".join(result)
     except Exception as e:

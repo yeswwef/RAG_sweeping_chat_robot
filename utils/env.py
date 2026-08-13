@@ -17,8 +17,6 @@ class Settings:
     amap_api_key: str = os.getenv("AMAP_API_KEY", "")
     # 日志级别
     log_level: str = os.getenv("LOG_LEVEL", "INFO")
-    # Redis 地址（后面做对话记忆用）
-    redis_url: str = os.getenv("REDIS_URL", "redis://localhost:6379")
     # ChromaDB 持久化目录
     chroma_persist_dir: str = "rag/chroma_db"
 

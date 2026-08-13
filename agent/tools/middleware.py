@@ -8,7 +8,7 @@ from langgraph.runtime import Runtime
 from langgraph.types import Command
 from utils.logger_handler import logger
 
-
+#检测工具调用情况
 @wrap_tool_call
 def monitor_tool(
         request: ToolCallRequest,
@@ -27,6 +27,8 @@ def monitor_tool(
         raise e
 
 
+
+#检测调用模型附带信息
 @before_model
 def log_before_model(
         state: AgentState,
@@ -36,7 +38,7 @@ def log_before_model(
     logger.debug(f"[log_before_model]{type(state['messages'][-1]).__name__} | {state['messages'][-1].content.strip()}")
     return None
 
-
+#输出报告
 @dynamic_prompt
 def report_prompt_switch(request: ModelRequest):
     is_report = request.runtime.context.get("report", False)

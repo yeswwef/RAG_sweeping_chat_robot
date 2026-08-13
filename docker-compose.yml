@@ -11,14 +11,7 @@ services:
       - .env                   # 自动加载 .env 文件到容器环境变量
     volumes:
       - ./rag/chroma_db:/app/rag/chroma_db  # 持久化向量数据库
-      - ./agent/chroma_db:/app/agent/chroma_db  # Agent 侧向量数据库
       - ./data:/app/data                    # 持久化数据
       - ./logs:/app/logs                    # 持久化日志
+      - ./conversations.db:/app/conversations.db  # 持久化会话数据库（多会话历史）
     restart: unless-stopped    # 挂了自动重启
-
-  # ===== Redis 服务 =====
-  redis:
-    image: redis:7-alpine       # 使用官方 Redis 镜像
-    ports:
-      - "6379:6379"
-    restart: unless-stopped
