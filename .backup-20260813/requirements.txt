@@ -1,0 +1,17 @@
+langchain>=0.3.0
+langgraph>=0.3.0
+langchain-community
+chromadb>=0.5.0
+langchain-chroma
+dashscope
+fastapi
+uvicorn[standard]
+pydantic>=2.0
+pyyaml
+python-dotenv
+httpx
+streamlit
+pytest>=8.0
+pytest-asyncio
+ruff
+mypy
