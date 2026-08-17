@@ -6,14 +6,14 @@ from langchain_core.tools import tool
 from utils.config_handler import agent_config
 from utils.logger_handler import logger
 from utils.path_tool import get_abs_path
-from rag.rag_service import RagSummarizeService
+from rag.rag_service import get_rag_service
 import random
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
 @tool(description="在向量检索中检索参考资料")
 def rag_summarize(query: str) -> str:
-    return RagSummarizeService().rag_summarize(query)
+    return get_rag_service().rag_summarize(query)
 
 
 

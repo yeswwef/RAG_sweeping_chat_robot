@@ -1,12 +1,16 @@
-langchain>=0.3.0
-langgraph>=0.3.0
-langgraph-checkpoint-sqlite>=2.0.0
-langchain-community
-chromadb>=0.5.0
-langchain-chroma
-dashscope
-fastapi
-uvicorn[standard]
+# 与本地验证环境（langchain 1.3.1 / langgraph 1.2.0 / Python 3.13）对齐的版本范围
+langchain>=1.3,<2
+langgraph>=1.2,<2
+langgraph-checkpoint-sqlite>=3,<4
+langchain-community>=0.4,<0.5
+chromadb>=1.5,<2
+langchain-chroma>=1.1,<2
+dashscope>=1.25
+rank-bm25==0.2.2
+jieba==0.42.1
+pypdf>=6.0
+fastapi>=0.115
+uvicorn[standard]>=0.30
 pydantic>=2.0
 pyyaml
 python-dotenv

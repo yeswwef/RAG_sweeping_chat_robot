@@ -39,6 +39,11 @@ class ReactAgent:
             if latest_message.content:
                 yield latest_message.content.strip() + "\n"
 
+    def delete_thread(self, thread_id: str) -> None:
+        """删除 LangGraph 记忆线程，与前端/API 删除会话保持一致。"""
+        if hasattr(self.checkpointer, "delete_thread"):
+            self.checkpointer.delete_thread(thread_id)
+
 if __name__ == '__main__':
     agent = ReactAgent()
     for chunk in agent.execute_stream("扫地机器人在我所在的地区的气温下如何保养"):

@@ -14,8 +14,9 @@ import sqlite3
 import uuid
 from datetime import datetime
 
-# 数据库文件路径：项目根目录下 conversations.db（与 Dockerfile WORKDIR /app 一致）
-DB_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "conversations.db")
+# 数据库文件路径：统一放在 data/ 目录下，便于 Docker 通过挂载 ./data:/app/data 持久化
+# （根目录遗留的 conversations.db 仅作旧版备份，不再读写）
+DB_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "conversations.db")
 
 _conn = None
 
@@ -25,9 +26,14 @@ def get_conn() -> sqlite3.Connection:
     global _conn
 
     if _conn is None:
+        os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
         _conn = sqlite3.connect(DB_PATH, check_same_thread=False)
         _conn.row_factory = sqlite3.Row
         _conn.execute("PRAGMA foreign_keys = ON")
+        # WAL：读写不互斥，适合 Streamlit 与 FastAPI 双进程共享同一数据库
+        _conn.execute("PRAGMA journal_mode = WAL")
+        # 写锁等待 5 秒，避免并发提交时报 database is locked
+        _conn.execute("PRAGMA busy_timeout = 5000")
         init_db(_conn)
     return _conn
 
@@ -62,10 +68,10 @@ def _now() -> str:
 
 # ==================== 会话 ====================
 
-def create_conversation(title: str = "新对话") -> str:
-    """新建会话，返回新 uuid。"""
+def create_conversation(title: str = "新对话", session_id: str | None = None) -> str:
+    """新建会话；不传 session_id 时自动生成新 uuid，传入时按指定 id 建会话。"""
     conn = get_conn()
-    sid = str(uuid.uuid4())
+    sid = session_id or str(uuid.uuid4())
     now = _now()
     conn.execute(
         "INSERT INTO conversations (id, title, created_at, updated_at) VALUES (?, ?, ?, ?)",

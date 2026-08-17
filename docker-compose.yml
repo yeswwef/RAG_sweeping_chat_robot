@@ -11,7 +11,27 @@ services:
       - .env                   # 自动加载 .env 文件到容器环境变量
     volumes:
       - ./rag/chroma_db:/app/rag/chroma_db  # 持久化向量数据库
-      - ./data:/app/data                    # 持久化数据
+      - ./data:/app/data                    # 持久化数据（含 conversations.db，WAL 文件随目录一起持久化）
       - ./logs:/app/logs                    # 持久化日志
-      - ./conversations.db:/app/conversations.db  # 持久化会话数据库（多会话历史）
     restart: unless-stopped    # 挂了自动重启
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  # ===== Streamlit 网页服务 =====
+  agent-ui:
+    image: wwwroot-agent-api           # 复用 agent-api 构建好的镜像（已含 streamlit）
+    depends_on:
+      - agent-api
+    command: ["python", "-m", "streamlit", "run", "app.py", "--server.port", "8501", "--server.address", "0.0.0.0", "--server.headless", "true"]
+    ports:
+      - "8501:8501"                   # 宿主机8501 -> 容器8501
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data               # 与 API 共享同一份 conversations.db
+      - ./logs:/app/logs
+    restart: unless-stopped

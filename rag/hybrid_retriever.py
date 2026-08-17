@@ -7,6 +7,7 @@ score(d) = Σ 1/(k + rank(d))，k=60（论文推荐值）
 """
 import hashlib
 import re
+import threading
 from typing import Optional
 
 from langchain_core.documents import Document
@@ -28,7 +29,7 @@ except ImportError:
 
 def tokenize(text: str) -> list[str]:
     """中文分词：优先 jieba；缺失时退化为 CJK 二元组 + 英文单词（零依赖兜底）。"""
-    if _HAS_JIEBA:
+    if _HAS_JIEBA:#jieba.cut(text)：把句子切成词，返回生成器（“我爱北京”→ 我/爱/北京）
         return [w.strip() for w in jieba.cut(text) if w.strip()]
     #下面就是如果jieba库没导进去的做法，效果一样
     words = re.findall(r"[a-zA-Z0-9_]+", text.lower())
@@ -38,7 +39,7 @@ def tokenize(text: str) -> list[str]:
 
 
 
-#计算返回的文档的md5值
+#计算返回的文档的md5值,同一段正文不管从稠密路还是稀疏路拿到，指纹都一样，可用来对齐、去重。
 def _doc_key(doc: Document) -> str:
     """正文哈希作为唯一键：稠密/稀疏两路拿到的 Document 内容一致，键可对齐去重。"""
     return hashlib.md5(doc.page_content.encode("utf-8")).hexdigest()
@@ -50,33 +51,46 @@ class HybridRetriever:
     def __init__(self, vector_store: VectorStoreService):
         self.vector_store = vector_store
         cfg = rag_config["hybrid_retrieval"]
-        self.enabled = cfg["enabled"]
-        self.dense_top_n = cfg["dense_top_n"]
-        self.sparse_top_n = cfg["sparse_top_n"]
-        self.rrf_k = cfg["rrf_k"]
-        self._bm25: Optional[BM25Okapi] = None
-        self._corpus: list[Document] = []
-        self._bm25_built = False
+        self.enabled = cfg["enabled"]#是否启用
+        self.dense_top_n = cfg["dense_top_n"]#稠密各取多少候选
+        self.sparse_top_n = cfg["sparse_top_n"]#稀疏各取多少候选
+        self.rrf_k = cfg["rrf_k"]#RRF 的 k
+        self._bm25: Optional[BM25Okapi] = None  # BM25 索引，初始没有
+        self._corpus: list[Document] = []  # 全量语料缓存
+        self._bm25_built = False  # 索引是否建过
+        self._corpus_version: tuple[int, str] | None = None  # 建索引时的语料指纹
+        self._bm25_lock = threading.Lock()  # 锁：防并发重复建
 
     def _ensure_bm25(self):
-        """惰性构建稀疏索引（注意：空语料时置 None，避免 rank_bm25 除零崩溃）。"""
-        if self._bm25_built:
-            return
-        self._bm25_built = True
-        docs = self.vector_store.get_all_documents()
-        if not docs:
-            logger.warning("[HybridRetriever] 向量库为空，跳过 BM25 索引构建")
-            self._corpus, self._bm25 = [], None
-            return
-        self._corpus = docs
-        self._bm25 = BM25Okapi([tokenize(d.page_content) for d in docs])
-        logger.info(f"[HybridRetriever] BM25 索引构建完成，共 {len(docs)} 个分块")
+        """版本化惰性构建：语料版本（count + id 指纹）变化时才全量重建；进程内只建一次。
+
+        注意：空语料时置 None，避免 rank_bm25 除零崩溃；语料后来入库后版本变化会触发重建。
+        """
+        with self._bm25_lock:#加锁,保证只有一个进程
+            current_version = self.vector_store.get_corpus_version()
+            if self._bm25_built and current_version == self._corpus_version:
+                return
+            self._bm25_built = True
+            self._corpus_version = current_version
+            docs = self.vector_store.get_all_documents()
+            
+
+            if not docs:
+                logger.warning("[HybridRetriever] 向量库为空，跳过 BM25 索引构建")
+                self._corpus, self._bm25 = [], None
+                return
+            self._corpus = docs
+            self._bm25 = BM25Okapi([tokenize(d.page_content) for d in docs])
+            logger.info(
+                f"[HybridRetriever] BM25 索引构建完成，共 {len(docs)} 个分块（语料版本 {current_version}）"
+            )
 
     #稠密
     def _dense_hits(self, query: str) -> list[Document]:
         return self.vector_store.similarity_search(query, k=self.dense_top_n)
     #稀疏
     def _sparse_hits(self, query: str) -> list[Document]:
+        self._ensure_bm25()
         if self._bm25 is None or not self._corpus:
             return []
         scores = self._bm25.get_scores(tokenize(query))
@@ -85,22 +99,15 @@ class HybridRetriever:
 
     def retrieve(self, queries: list[str]) -> list[tuple[Document, float]]:
         """对每个查询做稠密+稀疏召回，RRF 融合后返回 (文档, 融合分)，降序。"""
-        self._ensure_bm25()
         rrf_score: dict[str, float] = {}
         doc_map: dict[str, Document] = {}
         for q in queries:
+            for rank, doc in enumerate(self._dense_hits(q)):
+                key = _doc_key(doc)
+                rrf_score[key] = rrf_score.get(key, 0.0) + 1.0 / (self.rrf_k + rank + 1)
+                doc_map.setdefault(key, doc)
             if self.enabled:
-                for rank, doc in enumerate(self._dense_hits(q)):
-                    key = _doc_key(doc)
-                    rrf_score[key] = rrf_score.get(key, 0.0) + 1.0 / (self.rrf_k + rank + 1)
-                    doc_map.setdefault(key, doc)
                 for rank, doc in enumerate(self._sparse_hits(q)):
-                    key = _doc_key(doc)
-                    rrf_score[key] = rrf_score.get(key, 0.0) + 1.0 / (self.rrf_k + rank + 1)
-                    doc_map.setdefault(key, doc)
-            else:
-                # 配置关闭混合时退化为纯稠密
-                for rank, doc in enumerate(self._dense_hits(q)):
                     key = _doc_key(doc)
                     rrf_score[key] = rrf_score.get(key, 0.0) + 1.0 / (self.rrf_k + rank + 1)
                     doc_map.setdefault(key, doc)

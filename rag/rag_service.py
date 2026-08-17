@@ -41,6 +41,17 @@ class RagSummarizeService:
         return self.chain.invoke({'input': query, 'context': context})
 
 
+_rag_service_singleton: "RagSummarizeService | None" = None
+
+
+def get_rag_service() -> RagSummarizeService:
+    """进程内单例：避免每次工具调用都新建 Chroma 客户端 / Prompt / BM25 索引。"""
+    global _rag_service_singleton
+    if _rag_service_singleton is None:
+        _rag_service_singleton = RagSummarizeService()
+    return _rag_service_singleton
+
+
 if __name__ == '__main__':
-    rag = RagSummarizeService()
+    rag = get_rag_service()
     print(rag.rag_summarize('小户型适合哪些扫地机器人'))

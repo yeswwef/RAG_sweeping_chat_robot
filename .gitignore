@@ -6,6 +6,8 @@ rag/chroma_db/
 agent/chroma_db/
 *.egg-info/
 *.db
+*.db-shm
+*.db-wal
 *.log
 logs/
 .venv/

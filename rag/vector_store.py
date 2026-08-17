@@ -1,4 +1,5 @@
 import os
+import hashlib
 from typing import Optional
 from chromadb.utils import embedding_functions
 from langchain_core.documents import Document
@@ -52,6 +53,13 @@ class VectorStoreService:
             docs.append(Document(page_content=content, metadata=meta))
         return docs
 
+    def get_corpus_version(self) -> tuple[int, str]:
+        """轻量语料指纹（只拉 ids 不拉全文/向量），供 BM25 版本化懒重建判断是否过期。"""
+        data = self.vector_store.get(include=[])
+        ids = sorted(data.get("ids") or [])
+        digest = hashlib.md5("|".join(ids).encode("utf-8")).hexdigest()
+        return (len(ids), digest)
+
     def check_md5_hex(self, md5_check: str):
         md5_path = get_abs_path(chroma_config["md5_hex_store"])
         if not os.path.exists(md5_path):
@@ -65,7 +73,7 @@ class VectorStoreService:
 
     def save_md5_hex(self, md5_check: str):
         with open(get_abs_path(chroma_config["md5_hex_store"]),"a",encoding="utf-8") as f:
-            f.write(md5_check + "")
+            f.write(md5_check +"\\n") 
 
     def get_file_documents(self, read_path: str):
         if read_path.endswith("txt"):

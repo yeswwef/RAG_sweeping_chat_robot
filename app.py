@@ -11,23 +11,18 @@ from utils.db import (create_conversation, list_conversations, get_conversation,
                       delete_conversation, add_message, list_messages, make_title,
                       update_conversation_time, count_conversations)
 
-st.set_page_config(page_title="AI扫地机器人", page_icon="🤖", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(page_title="AI扫地机器人", page_icon="🤖")
 st.title("🤖 AI扫地机器人知识问答系统")
 st.divider()
 
-# ==================== 会话状态初始化 ====================
+# ==================== 初始化 ====================
 if "agent" not in st.session_state:
     st.session_state["agent"] = ReactAgent()
 if "message" not in st.session_state:
     st.session_state["message"] = []
-
-# 启动时：若没有会话记录，先建一个；若已有 session_id 则校验其是否仍存在（可能被删过）
 if "session_id" not in st.session_state:
-
-    st.session_state["session_id"] = create_conversation()
-
-    # 从数据库加载该会话的历史消息
-    st.session_state["message"] = list_messages(st.session_state["session_id"])
+    st.session_state["session_id"] = None  # 懒创建：第一次提问才写入数据库
+    st.session_state["message"] = []
 
 # ==================== 侧边栏：会话管理 ====================
 with st.sidebar:
@@ -35,13 +30,13 @@ with st.sidebar:
 
     # 新建对话
     if st.button("➕ 新建对话", use_container_width=True):
-        # 保存当前会话（消息已在每次对话后实时写入数据库，此处只需切换）
-        st.session_state["session_id"] = create_conversation()
+        # 懒创建：不立即写库，等用户第一次提问才创建会话（避免空会话残留）
+        st.session_state["session_id"] = None
         st.session_state["message"] = []
         st.rerun()
 
-    st.divider()
-    st.caption("历史会话")
+    st.divider()  # 画一条水平分割线
+    st.caption("历史会话")  # 显示一行灰色小字"历史会话"
 
     # 会话列表（按更新时间倒序）
     conversations = list_conversations()
@@ -66,6 +61,11 @@ with st.sidebar:
             with col2:
                 if st.button("🗑", key=f"del_{conv['id']}", help="删除该会话"):
                     delete_conversation(conv["id"])
+                    # 同步清理 LangGraph 记忆线程，避免 UI 删除后记忆残留
+                    try:
+                        st.session_state["agent"].delete_thread(conv["id"])
+                    except Exception:
+                        pass
                     # 删的是当前会话：session_id 和 message 必须一起重置（新 uuid + 空列表），
                     # 否则会继续往已删除的 thread 里写
                     if conv["id"] == current_sid:
@@ -74,12 +74,12 @@ with st.sidebar:
                             st.session_state["session_id"] = remaining[0]["id"]
                             st.session_state["message"] = list_messages(remaining[0]["id"])
                         else:
-                            st.session_state["session_id"] = create_conversation()
+                            st.session_state["session_id"] = None  # 没有会话了，等下次提问再建
                             st.session_state["message"] = []
                     st.rerun()
 
     st.divider()
-    st.caption(f"当前会话：{str(current_sid)[:8]}...")
+    st.caption(f"当前会话：{str(current_sid)[:8]}..." if current_sid else "当前会话：未开始")
 
 # ==================== 聊天区 ====================
 for message in st.session_state["message"]:
@@ -90,6 +90,11 @@ prompt = st.chat_input("请输入内容")
 if prompt:
     sid = st.session_state["session_id"]
 
+    # 懒创建：第一次提问才真正创建会话记录（空会话不入库）
+    if sid is None:
+        sid = create_conversation()
+        st.session_state["session_id"] = sid
+
     # 用户消息：先写数据库（保证持久化），再展示
     add_message(sid, "user", prompt)
     st.chat_message("user").write(prompt)
@@ -98,12 +103,13 @@ if prompt:
     # 新会话自动命名：第一句用户问题做标题
     if count_conversations() > 0 and get_conversation(sid):
         msgs = list_messages(sid)
+        #只有第一次提问改名后面提问均不改名
         if len([m for m in msgs if m["role"] == "user"]) == 1:
             update_conversation_time(sid, title=make_title(prompt))
 
     res_messages = []
     with st.spinner("智能客服思考中..."):
-        # 流式输出拦截器函数
+        # 小"管道"函数：遍历底层生成器吐出的每个片段
         def capture(generator, cache_list):
             for chunk in generator:
                 cache_list.append(chunk)
