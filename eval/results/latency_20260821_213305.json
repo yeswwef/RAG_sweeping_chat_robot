@@ -1,0 +1,121 @@
+{
+  "meta": {
+    "generated_at": "2026-08-21T21:33:05",
+    "n": 5
+  },
+  "summary": {
+    "stage": {
+      "rewrite_ms": {
+        "p50_ms": 2523.2,
+        "p95_ms": 3144.8,
+        "mean_ms": 2553.7
+      },
+      "dense_ms": {
+        "p50_ms": 1241.9,
+        "p95_ms": 1352.4,
+        "mean_ms": 1254.9
+      },
+      "sparse_fuse_ms": {
+        "p50_ms": 4.8,
+        "p95_ms": 396.3,
+        "mean_ms": 83.2
+      },
+      "summarize_ms": {
+        "p50_ms": 7677.2,
+        "p95_ms": 7911.4,
+        "mean_ms": 7204.6
+      },
+      "total_ms": {
+        "p50_ms": 11562.2,
+        "p95_ms": 12202.8,
+        "mean_ms": 11096.4
+      }
+    },
+    "tokens": {
+      "input_mean": 11908.2,
+      "output_mean": 184.4
+    }
+  },
+  "rows": [
+    {
+      "id": "扫地机器人100问2-001-391d30789c",
+      "file": "扫地机器人100问2",
+      "kind": "qa",
+      "query": "首次使用扫地机器人需要做什么？",
+      "n_queries": 3,
+      "answer_len": 302,
+      "n_candidates": 70,
+      "rewrite_ms": 2569.9,
+      "dense_ms": 1352.4,
+      "sparse_fuse_ms": 396.3,
+      "summarize_ms": 7884.3,
+      "total_ms": 12202.8,
+      "input_tokens": 14671,
+      "output_tokens": 197
+    },
+    {
+      "id": "扫地机器人100问2-002-3d2dfc4fc3",
+      "file": "扫地机器人100问2",
+      "kind": "qa",
+      "query": "开机后机器人不移动怎么办？",
+      "n_queries": 3,
+      "answer_len": 271,
+      "n_candidates": 71,
+      "rewrite_ms": 2424.5,
+      "dense_ms": 1221.6,
+      "sparse_fuse_ms": 4.6,
+      "summarize_ms": 7911.4,
+      "total_ms": 11562.2,
+      "input_tokens": 12817,
+      "output_tokens": 176
+    },
+    {
+      "id": "扫地机器人100问2-003-f2846c48e9",
+      "file": "扫地机器人100问2",
+      "kind": "qa",
+      "query": "机器人找不到充电座怎么处理？",
+      "n_queries": 3,
+      "answer_len": 260,
+      "n_candidates": 57,
+      "rewrite_ms": 2105.9,
+      "dense_ms": 1274.4,
+      "sparse_fuse_ms": 5.6,
+      "summarize_ms": 6340.8,
+      "total_ms": 9726.8,
+      "input_tokens": 11639,
+      "output_tokens": 164
+    },
+    {
+      "id": "扫地机器人100问2-004-cc17cdf116",
+      "file": "扫地机器人100问2",
+      "kind": "qa",
+      "query": "APP无法连接机器人怎么办？",
+      "n_queries": 3,
+      "answer_len": 302,
+      "n_candidates": 63,
+      "rewrite_ms": 2523.2,
+      "dense_ms": 1241.9,
+      "sparse_fuse_ms": 4.8,
+      "summarize_ms": 6209.5,
+      "total_ms": 9979.4,
+      "input_tokens": 11405,
+      "output_tokens": 176
+    },
+    {
+      "id": "扫地机器人100问2-005-c7812bd726",
+      "file": "扫地机器人100问2",
+      "kind": "qa",
+      "query": "建图不完整、地图错乱怎么解决？",
+      "n_queries": 3,
+      "answer_len": 318,
+      "n_candidates": 51,
+      "rewrite_ms": 3144.8,
+      "dense_ms": 1184.1,
+      "sparse_fuse_ms": 4.6,
+      "summarize_ms": 7677.2,
+      "total_ms": 12010.7,
+      "input_tokens": 9009,
+      "output_tokens": 209
+    }
+  ]
+}

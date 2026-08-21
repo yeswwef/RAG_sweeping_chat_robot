@@ -20,7 +20,7 @@ class VectorStoreService:
         self.vector_store = Chroma(
             collection_name=chroma_config["collection_name"],
             embedding_function=self.embedding,
-            persist_directory=chroma_config["persist_directory"]
+            persist_directory=get_abs_path(chroma_config["persist_directory"])
         )
         self.spliter = RecursiveCharacterTextSplitter(
             chunk_size=chroma_config["chunk_size"],
