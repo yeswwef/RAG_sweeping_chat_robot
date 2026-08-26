@@ -8,8 +8,8 @@
 
 ```
 eval/
-  build_eval_set.py        # 从 data/ 语料解析出 eval_set.json（query/answer/kind）
-  metrics.py               # 纯函数指标层：hit/recall/mrr/ndcg/context_precision
+  build_eval_set.py        # 从 data/ 语料解析出 eval_set.json（qa/fault/knowledge + 同义/口语化变体）
+  metrics.py               # 纯函数指标层：hit/recall/mrr/ndcg/context_precision/recall_full
   gold.py                  # 黄金集派生与加载（答案 -> 相关 chunk 映射）
   judge.py                 # LLM-as-Judge（faithfulness / relevance / completeness）
   validate_gold.py         # 黄金集质量校验（离线，不调 API）
@@ -44,6 +44,19 @@ python eval/run_latency_eval.py --limit 5           # 5) 耗时/成本
 | mrr@k | 首个相关 chunk 排名倒数的均值 |
 | ndcg@k | 二值相关性的折损累计增益 |
 | context_precision@k | RAGAS 语境精确率（Average Precision），衡量相关 chunk 是否排前、无关 chunk 是否稀释上下文 |
+| recall_full | 整批召回：检索返回的全部候选中命中相关 chunk 的比例（不截断 top-k），贴近"全部资料都进 prompt"的线上实际 |
+
+评测集说明：
+- `build_eval_set.py` 除原版问题外，还会为 qa/fault/knowledge 各生成一条
+  同义/口语化变体（`variant: true`），变体与标准答案仍指向同一 gold，
+  因此变体上的召回率更能反映"换个说法还能不能找到资料"。
+- `data/` 下的 8 个陈述句知识文件（产品知识/使用技巧/安装设置/耗材配件/
+  安全须知/智能功能/售后服务/术语词典）默认纳入评测，kind=knowledge，
+  query 由"主题短语 + 领域问法模板"生成（如"边刷怎么选购更换？"
+  "APP是什么意思？"），answer 为整条陈述。
+
+`run_retrieval_eval.py` 会在结果里按 `kind/variant` 分组展示（如 `qa/original`、
+`qa/variant`），并新增 `recall_full` 指标。
 
 ### 生成阶段（run_generation_eval.py）
 
@@ -57,7 +70,7 @@ python eval/run_latency_eval.py --limit 5           # 5) 耗时/成本
 
 ### 黄金集（gold.py + validate_gold.py）
 
-- gold 派生口径：`eval_set.json` 中每条 answer 即"应被检索到的资料原文"，用答案最长前缀在语料分块中的出现映射为相关 chunk（chunk 正文 md5 作键，与生产 `_doc_key` 一致）。
+- gold 派生口径：`eval_set.json` 中每条 answer 即"应被检索到的资料原文"，先把答案按句级分隔符拆段，逐段匹配语料分块（支持一题对应多个相关分块），全部拆段无命中时退化为"答案最长前缀"匹配；chunk 正文 md5 作键，与生产 `_doc_key` 一致。
 - validate_gold.py 输出覆盖率、空 gold 明细、query/answer 重复率、平均相关 chunk 数，并可 `--save-gold` 落盘供人工复核。
 
 ## 已知边界

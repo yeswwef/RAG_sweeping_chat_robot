@@ -65,6 +65,7 @@ def main():
     id2item = {i["id"]: i for i in items}
     unmatched_by_kind = Counter(id2item[i]["kind"] for i in unmatched)
     rel_counts = [len(v) for v in derived.values()]
+    originals = [i for i in items if not i.get("variant")]
 
     n_total = len(items)
     n_covered = len(derived)
@@ -80,8 +81,9 @@ def main():
             "unmatched_by_kind": dict(unmatched_by_kind),
         },
         "avg_relevant_chunks": round(sum(rel_counts) / len(rel_counts), 2) if rel_counts else 0.0,
-        "duplicate_queries": len(duplicate_pairs(items, "query")),
-        "duplicate_answers": len(duplicate_pairs(items, "answer")),
+        # 变体条目故意与原版共用答案，去重检查只针对原版题目
+        "duplicate_queries": len(duplicate_pairs(originals, "query")),
+        "duplicate_answers": len(duplicate_pairs(originals, "answer")),
     }
 
     print(json.dumps(report, ensure_ascii=False, indent=2))

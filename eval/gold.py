@@ -19,23 +19,47 @@ from rag.hybrid_retriever import _doc_key
 EVAL_DIR = Path(__file__).resolve().parent
 EVAL_SET = EVAL_DIR / "eval_set.json"
 MIN_PREFIX = 12
+SEGMENT_MIN = 8
+_SEG_SPLIT = re.compile(r"[；;。！？!?\n]+")
 
 
 def norm_text(s):
     return re.sub(r"\s+", "", s or "")
 
 
-def derive_relevant_keys(corpus, answer, min_prefix=MIN_PREFIX):
-    """返回答案命中的相关 chunk md5 键（升序、去重）。"""
+def _match_keys(corpus, corpus_norm, probe):
+    """返回正文包含 probe 的分块 md5 键（升序、去重）。"""
+    return sorted({_doc_key(d) for d, t in zip(corpus, corpus_norm) if probe and probe in t})
+
+
+def derive_relevant_keys(corpus, answer, min_prefix=MIN_PREFIX, segment_min=SEGMENT_MIN):
+    """返回答案命中的相关 chunk md5 键（升序、去重）。
+
+    策略升级（支持一题多个相关分块）：
+    1. 先把答案按句级分隔符（；;。！？!?换行）拆成多段，每段长度 >= segment_min
+       就去语料分块里找包含它的 chunk；多段命中会并成多个相关分块，
+       不再像旧逻辑那样只取"答案开头所在的那 1 块"。
+    2. 若整段拆分一无所获，退化为"答案最长前缀逐级缩短"匹配，
+       保证至少能找到答案开头所在的分块（覆盖率不会因此下降）。
+    """
     probe = norm_text(answer)
     if len(probe) < min_prefix:
         return []
     corpus_norm = [norm_text(d.page_content) for d in corpus]
+
+    keys: set[str] = set()
+    for seg in _SEG_SPLIT.split(probe):
+        seg = seg.strip()
+        if len(seg) >= segment_min:
+            keys.update(_match_keys(corpus, corpus_norm, seg))
+    if keys:
+        return sorted(keys)
+
     for end in range(len(probe), min_prefix - 1, -1):
         prefix = probe[:end]
-        keys = sorted({_doc_key(d) for d, t in zip(corpus, corpus_norm) if prefix in t})
+        keys.update(_match_keys(corpus, corpus_norm, prefix))
         if keys:
-            return keys
+            return sorted(keys)
     return []
 
 

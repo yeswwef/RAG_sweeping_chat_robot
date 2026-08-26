@@ -32,19 +32,39 @@ import metrics
 
 RESULTS_DIR = EVAL_DIR / "results"
 EVAL_SET = EVAL_DIR / "eval_set.json"
-STRATEGIES = ("dense", "bm25", "hybrid", "hybrid_rewrite")
+STRATEGIES = ("dense", "bm25", "hybrid", "hybrid_rewrite")#评测参赛选手
 
-
+#分层均匀抽样
 def sample_items(items, n):
     if n >= len(items):
         return items
-    by_file = {}
-    order = []
+
+    by_file = {}#空字典  key=文件名，value=该文件的题列表
+    order = []#空列表，记住文件出现的先后顺序
+
+
     for item in items:
         if item["file"] not in by_file:
             by_file[item["file"]] = []
             order.append(item["file"])
         by_file[item["file"]].append(item)
+
+    # 关键：把每个文件里的“原版/变体”交错排开。
+    # 否则均衡抽样永远只取到排在前面的原版题，变体题一次都抽不到。
+    for f in order:
+        orig = [i for i in by_file[f] if not i.get("variant")]
+        var = [i for i in by_file[f] if i.get("variant")]
+        interleaved = []
+        oi = vi = 0
+        while oi < len(orig) or vi < len(var):
+            if oi < len(orig):
+                interleaved.append(orig[oi])
+                oi += 1
+            if vi < len(var):
+                interleaved.append(var[vi])
+                vi += 1
+        by_file[f] = interleaved
+
     result = []
     idx = {f: 0 for f in order}
     while len(result) < n:
@@ -94,7 +114,7 @@ def main():
         sys.exit("评测集不存在，请先运行: python eval/build_eval_set.py")
 
     data = gold.load_eval_set()
-    items = [i for i in data["items"] if i["kind"] in ("qa", "fault") or args.include_tips]
+    items = [i for i in data["items"] if i["kind"] in ("qa", "fault", "knowledge") or args.include_tips]
     items = sample_items(items, args.sample)
     print(f"评测集: 共 {data['meta']['total']} 条，本次抽样 {len(items)} 条")
 
@@ -113,11 +133,8 @@ def main():
     usable = [i for i in items if derived.get(i["id"])]
     print(f"ground truth 命中: {len(usable)}/{len(items)}，无匹配已排除: {len(unmatched)}")
 
-    metric_names = [
-        f"{m}@{k}"
-        for k in metrics.KS
-        for m in ("hit", "recall", "mrr", "ndcg", "context_precision")
-    ]
+    # 与 metrics.retrieval_metrics 的键保持一致（含新增 recall_full）
+    metric_names = list(metrics.retrieval_metrics([], set()).keys())
     results = {
         "meta": {
             "generated_at": datetime.now().isoformat(timespec="seconds"),
@@ -125,6 +142,7 @@ def main():
             "sample_size": len(items),
             "usable_size": len(usable),
             "excluded_no_gold": len(unmatched),
+            "variant_items": sum(1 for i in usable if i.get("variant")),
             "config": {"dense_top_n": dense_k, "sparse_top_n": sparse_k, "rrf_k": cfg["rrf_k"]},
             "rewrite_enabled": rw.enabled,
         },
@@ -135,6 +153,7 @@ def main():
     for strat in STRATEGIES:
         agg = {m: [] for m in metric_names}
         latencies = []
+        groups: dict[str, dict[str, list]] = {}
         for item in usable:
             q = item["query"]
             g = derived[item["id"]]
@@ -156,8 +175,11 @@ def main():
                 lat = time.perf_counter() - t
             ranked_keys = [_doc_key(d) for d in docs]
             m = metrics.retrieval_metrics(ranked_keys, g)
+            gk = f"{item['kind']}/{'variant' if item.get('variant') else 'original'}"
+            groups.setdefault(gk, {mm: [] for mm in metric_names})
             for k, v in m.items():
                 agg[k].append(v)
+                groups[gk][k].append(v)
             latencies.append(lat * 1000)
             results["per_item"].setdefault(item["id"], {})[strat] = {
                 **m,
@@ -165,6 +187,10 @@ def main():
                 "n_candidates": len(docs),
             }
         results["strategies"][strat] = {k: round(metrics.mean(v), 4) for k, v in agg.items()}
+        results["strategies"][strat]["by_group"] = {
+            gk: {k: round(metrics.mean(v), 4) for k, v in vals.items()}
+            for gk, vals in groups.items()
+        }
         results["strategies"][strat]["avg_latency_ms"] = round(metrics.mean(latencies), 1)
         results["strategies"][strat]["p50_latency_ms"] = round(metrics.percentile(latencies, 0.5), 1)
         print(f"[{strat}] 完成，平均耗时 {results['strategies'][strat]['avg_latency_ms']}ms")
@@ -180,6 +206,7 @@ def main():
         ("mrr@10", "mrr@10"),
         ("ndcg@10", "ndcg@10"),
         ("context_precision@5", "context_precision@5"),
+        ("recall_full", "recall_full"),
         ("avg_ms", "avg_latency_ms"),
     ]
     header = f"{'策略':<16}" + "".join(f"{label:>20}" for label, _ in display)
@@ -188,6 +215,18 @@ def main():
         s = results["strategies"][strat]
         row = f"{strat:<16}" + "".join(f"{s[key]:>20}" for _, key in display)
         print(row)
+
+    print("\n===== 按 类型/原版vs变体 分组（recall@5 / recall_full / context_precision@5）=====")
+    print(f"{'策略':<16}{'分组':<24}{'recall@5':>12}{'recall_full':>12}{'cp@5':>12}")
+    for strat in STRATEGIES:
+        s = results["strategies"][strat]
+        for gk, vals in s.get("by_group", {}).items():
+            print(
+                f"{strat:<16}{gk:<24}"
+                f"{vals.get('recall@5', 0):>12}"
+                f"{vals.get('recall_full', 0):>12}"
+                f"{vals.get('context_precision@5', 0):>12}"
+            )
     print(f"\n原始数据: {out_path}")
 
 

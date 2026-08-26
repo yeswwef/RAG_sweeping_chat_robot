@@ -79,7 +79,7 @@ def main():
         sys.exit("评测集不存在，请先运行: python eval/build_eval_set.py")
 
     data = gold.load_eval_set()
-    items = [i for i in data["items"] if i["kind"] in ("qa", "fault")][: args.limit]
+    items = [i for i in data["items"] if i["kind"] in ("qa", "fault", "knowledge")][: args.limit]
     if not items:
         sys.exit("评测集为空")
 

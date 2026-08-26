@@ -29,23 +29,26 @@ class VectorStoreService:
             length_function=len
         )
 
+    #拿一个标准检索器
     def get_retriever(self, search_kwargs: Optional[dict] = None):
         return self.vector_store.as_retriever(
             search_kwargs={'k': chroma_config["k"]}
         )
 
+    #把问题 query 向量化，找语义最像的 k 条，默认 k=4
     def similarity_search(self, query: str, k: int = 4) -> list[Document]:
         """稠密向量检索，返回 k 条最相似文档（供混合检索的稠密路使用）。"""
         return self.vector_store.similarity_search(query, k=k)
 
+
     def get_all_documents(self) -> list[Document]:
         """拉取向量库中全部分块（供 BM25 构建稀疏索引）。"""
-        data = self.vector_store.get()
+        data = self.vector_store.get()#一次性取出库里的所有分块，返回三列：id（编号）、documents（正文）、metadatas（附加信息）
         ids = data.get("ids") or []
         documents = data.get("documents") or []
         metadatas = data.get("metadatas") or [None] * len(ids)
         docs = []
-        for doc_id, content, meta in zip(ids, documents, metadatas):
+        for doc_id, content, meta in zip(ids, documents, metadatas):#zip(...)：把三列按位置一对一对地组合起来遍历
             if not content:
                 continue
             meta = dict(meta) if meta else {}
@@ -53,12 +56,14 @@ class VectorStoreService:
             docs.append(Document(page_content=content, metadata=meta))
         return docs
 
+    #BM25 构建前先比指纹——没变就用缓存的旧索引，变了才重新建
     def get_corpus_version(self) -> tuple[int, str]:
         """轻量语料指纹（只拉 ids 不拉全文/向量），供 BM25 版本化懒重建判断是否过期。"""
-        data = self.vector_store.get(include=[])
+        data = self.vector_store.get(include=[])#只拉 id 列表，不拉正文和向量
         ids = sorted(data.get("ids") or [])
         digest = hashlib.md5("|".join(ids).encode("utf-8")).hexdigest()
         return (len(ids), digest)
+
 
     def check_md5_hex(self, md5_check: str):
         md5_path = get_abs_path(chroma_config["md5_hex_store"])
@@ -71,9 +76,11 @@ class VectorStoreService:
                     return True
         return False
 
+
     def save_md5_hex(self, md5_check: str):
         with open(get_abs_path(chroma_config["md5_hex_store"]),"a",encoding="utf-8") as f:
-            f.write(md5_check +"\\n") 
+            f.write(md5_check +"\n") 
+
 
     def get_file_documents(self, read_path: str):
         if read_path.endswith("txt"):
@@ -82,11 +89,13 @@ class VectorStoreService:
             return pdf_loader(read_path)
         return None
 
+    #入库核心函数
     def load_document(self):
         allow_file_path: list[str] = listdir_with_allowed_type(
             get_abs_path(chroma_config["data_path"]),
             tuple(chroma_config["allow_knowledge_file_type"])
         )
+
         for path in allow_file_path:
             md5_hex = get_file_md5(path)
             if self.check_md5_hex(md5_hex):
@@ -107,6 +116,7 @@ class VectorStoreService:
                 logger.info(f"[加载知识库]{path} 内容加载成功")
             except Exception as e:
                 logger.error(f"[加载知识库]{path}加载失败: {str(e)}", exc_info=True)
+
 
 if __name__ == '__main__':
     vs = VectorStoreService(embedding_model)

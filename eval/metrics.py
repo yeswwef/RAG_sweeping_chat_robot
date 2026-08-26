@@ -67,6 +67,15 @@ def context_recall_at_k(ranked, gold, k):
     return recall_at_k(ranked, gold, k)
 
 
+def recall_full(ranked, gold):
+    """整批召回：检索返回的全部候选里命中相关 chunk 数 / 相关 chunk 总数（不截断 top-k）。
+
+    用途：RAG 生成阶段会把检索返回的全部候选拼进 prompt，因此"整批有没有捞全"
+    比只看 top-5/10 更贴近线上实际。
+    """
+    return recall_at_k(ranked, gold, len(ranked))
+
+
 def retrieval_metrics(ranked, gold):
     """返回该 query 的全部检索指标 dict。"""
     out = {}
@@ -76,6 +85,7 @@ def retrieval_metrics(ranked, gold):
         out[f"mrr@{k}"] = mrr_at_k(ranked, gold, k)
         out[f"ndcg@{k}"] = ndcg_at_k(ranked, gold, k)
         out[f"context_precision@{k}"] = context_precision_at_k(ranked, gold, k)
+    out["recall_full"] = recall_full(ranked, gold)
     return out
 
 

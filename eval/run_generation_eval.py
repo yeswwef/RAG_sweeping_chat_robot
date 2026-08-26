@@ -49,7 +49,7 @@ def main():
     parser = argparse.ArgumentParser(description="生成质量评测（faithfulness / relevance / completeness）")
     parser.add_argument("--limit", type=int, default=3)
     parser.add_argument("--judge-model", default="qwen-plus")
-    parser.add_argument("--kind", choices=["qa", "fault", "tip"], default="qa")
+    parser.add_argument("--kind", choices=["qa", "fault", "tip", "knowledge"], default="qa")
     parser.add_argument("--out", type=Path, default=None)
     args = parser.parse_args()
 
