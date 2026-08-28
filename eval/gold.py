@@ -16,22 +16,22 @@ from pathlib import Path
 
 from rag.hybrid_retriever import _doc_key
 
-EVAL_DIR = Path(__file__).resolve().parent
-EVAL_SET = EVAL_DIR / "eval_set.json"
-MIN_PREFIX = 12
-SEGMENT_MIN = 8
-_SEG_SPLIT = re.compile(r"[；;。！？!?\n]+")
+EVAL_DIR = Path(__file__).resolve().parent      # eval 目录
+EVAL_SET = EVAL_DIR / "eval_set.json"           # 评测集路径
+MIN_PREFIX = 12      # 前缀匹配最短长度下限
+SEGMENT_MIN = 8      # 拆段后每段的最短长度下限
+_SEG_SPLIT = re.compile(r"[；;。！？!?\n]+")      # 按句级分隔符拆答案
 
-
+#删掉所有空白（空格/换行/tab），返回紧凑字符串
 def norm_text(s):
     return re.sub(r"\s+", "", s or "")
 
-
+#
 def _match_keys(corpus, corpus_norm, probe):
     """返回正文包含 probe 的分块 md5 键（升序、去重）。"""
     return sorted({_doc_key(d) for d, t in zip(corpus, corpus_norm) if probe and probe in t})
 
-
+#拿一条答案去内存分块里匹配，返回 md5 列表
 def derive_relevant_keys(corpus, answer, min_prefix=MIN_PREFIX, segment_min=SEGMENT_MIN):
     """返回答案命中的相关 chunk md5 键（升序、去重）。
 
@@ -42,7 +42,7 @@ def derive_relevant_keys(corpus, answer, min_prefix=MIN_PREFIX, segment_min=SEGM
     2. 若整段拆分一无所获，退化为"答案最长前缀逐级缩短"匹配，
        保证至少能找到答案开头所在的分块（覆盖率不会因此下降）。
     """
-    probe = norm_text(answer)
+    probe = norm_text(answer)#答案去空白
     if len(probe) < min_prefix:
         return []
     corpus_norm = [norm_text(d.page_content) for d in corpus]
@@ -62,7 +62,15 @@ def derive_relevant_keys(corpus, answer, min_prefix=MIN_PREFIX, segment_min=SEGM
             return sorted(keys)
     return []
 
+#corpus返回的切块
+"""
+corpus = [
+    Document(page_content="首次使用前先拆除机身所有包装配件，充满电后在空旷环境下启动建图。"),
+    Document(page_content="开机后若机器人不移动，检查防撞条、电源线是否缠绕。"),
+]
+"""
 
+#循环所有题目，把结果攒成“题目id → md5列表”的字典
 def derive_gold(corpus, items):
     """返回 ({item_id: [keys]}, unmatched_ids)。"""
     gold = {}
@@ -75,7 +83,7 @@ def derive_gold(corpus, items):
             unmatched.append(item["id"])
     return gold, unmatched
 
-
+#读取 eval_set.json 并解析成 Python 字典
 def load_eval_set(path=None):
     p = Path(path) if path else EVAL_SET
     return json.loads(p.read_text(encoding="utf-8"))

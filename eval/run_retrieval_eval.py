@@ -100,6 +100,7 @@ def strategy_hybrid(hr, q):
 
 def strategy_hybrid_rewrite(hr, rw, q):
     queries = rw.rewrite(q)
+
     return queries, [d for d, _ in hr.retrieve(queries)]
 
 

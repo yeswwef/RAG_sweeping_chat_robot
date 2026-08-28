@@ -256,6 +256,7 @@ def main():
 
     all_items = []
     for f in QA_FILES:
+        #(DATA_DIR / f)：拼出文件的完整路径（比如 data/扫地机器人100问2.txt）
         all_items += parse_qa((DATA_DIR / f).read_text(encoding="utf-8"), Path(f).stem)
     all_items += parse_fault((DATA_DIR / FAULT_FILE).read_text(encoding="utf-8"), Path(FAULT_FILE).stem)
 
@@ -287,11 +288,11 @@ def main():
             seen2.add(key)
             final.append(item)
 
-    #统计每种类型各多少条
+    #统计每种类型各多少条qa/fault/tip/knowledge
     by_kind = {k: sum(1 for i in final if i["kind"] == k) for k in ("qa", "fault", "tip", "knowledge")}
     #数一下变体条目有多少条（i.get("variant") 为 True 的）
     variants = sum(1 for i in final if i.get("variant"))
-    payload = {
+    payload = {#把“元信息 + 题目”组装成要写入文件的整体结构
         "meta": {
             "generated_at": datetime.now().isoformat(timespec="seconds"),
             "total": len(final),

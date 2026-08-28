@@ -50,7 +50,7 @@ COMPLETENESS_PROMPT = """请判断"模型回答"是否覆盖"参考标准答案"
 模型回答：{answer}
 """
 
-
+#判模型偶尔会输出废话、带解释、包 markdown 代码块，这函数负责从乱七八糟的输出里抠出 JSON
 def parse_json(content, fallback):
     m = re.search(r"\{.*\}", content, re.S)
     if m:
@@ -62,7 +62,7 @@ def parse_json(content, fallback):
             pass
     return fallback
 
-
+#真正调用 DashScope 的裁判模型，把填好的提示词发过去，拿回文本
 def call_judge(prompt, judge_model):
     from dashscope import Generation
 
@@ -77,7 +77,7 @@ def call_judge(prompt, judge_model):
     )
     return resp.output.choices[0].message.content
 
-
+#忠实度裁判的“填表 + 调用 + 解析”三步封装
 def judge_faithfulness(question, context, answer, judge_model):
     content = call_judge(
         FAITHFULNESS_PROMPT.format(question=question, context=context, answer=answer),
