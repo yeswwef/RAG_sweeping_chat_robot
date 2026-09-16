@@ -29,6 +29,7 @@ def get_conn() -> sqlite3.Connection:
         os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
         _conn = sqlite3.connect(DB_PATH, check_same_thread=False)
         _conn.row_factory = sqlite3.Row
+        #配置
         _conn.execute("PRAGMA foreign_keys = ON")
         # WAL：读写不互斥，适合 Streamlit 与 FastAPI 双进程共享同一数据库
         _conn.execute("PRAGMA journal_mode = WAL")
@@ -39,7 +40,7 @@ def get_conn() -> sqlite3.Connection:
 
 
 def init_db(conn: sqlite3.Connection) -> None:
-    """建表（幂等）。"""
+    """建表"""
     conn.execute("""
         CREATE TABLE IF NOT EXISTS conversations (
             id          TEXT PRIMARY KEY,                 -- uuid4 字符串

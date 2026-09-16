@@ -4,9 +4,9 @@ embedding_model_name: text-embedding-v4
 
 hybrid_retrieval:
   enabled: true
-  dense_top_n: 20 # 稠密路候选数
-  sparse_top_n: 20 # 稀疏路候选数
-  rrf_k: 60 # RRF 常数
+  dense_top_n: 10 # 稠密路候选数
+  sparse_top_n: 10 # 稀疏路候选数
+  rrf_k: 10 # RRF 常数
 
 query_rewrite:
   enabled: true
